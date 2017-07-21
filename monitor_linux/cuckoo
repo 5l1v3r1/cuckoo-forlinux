@@ -1,0 +1,49 @@
+#!/bin/bash
+#
+# cuckoo guest
+#
+# chkconfig: 2345 55 25
+# description: cuckoo guest. \
+#              This service starts in daemon.
+#
+# processname:cuckoo
+
+### BEGIN INIT INFO
+# Provides: cuckoo 
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+### END INIT INFO
+
+# source function library
+. /etc/rc.d/init.d/functions
+
+CUCKOOBIN="/root/.cuckoo/agent.sh"
+
+# pull in sysconfig settiongs
+
+start()
+{
+    ${CUCKOOBIN}
+    RETVAL=$?
+    if [[ $RETVAL -eq 0 ]]; then
+	    $AGENTBIN -d && success || failure
+    else
+        failure
+    fi
+    echo
+    return $RETVAL
+}
+
+
+
+case "$1" in
+	start)
+		rh_status_q && exit 0
+		start
+		;;
+	*)
+		echo $"Usage: $0 {start}"
+		RETVAL=2
+esac
+exit $RETVAL
+
