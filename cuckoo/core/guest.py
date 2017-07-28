@@ -70,6 +70,12 @@ def analyzer_zipfile(platform, monitor):
             path = os.path.join(dirpath, name)
             archive_name = os.path.join("/bin", name)
             zip_file.write(path, archive_name)
+    elif platform == "linux":
+        pass
+        #modify by xuyuu
+        #stpdir = cwd("monitor_linux")
+        #stpfile = os.path.join(stpdir, "strace.stp")
+        #zip_file.write(stpfile)
 
     zip_file.close()
     data = zip_data.getvalue()
@@ -337,14 +343,19 @@ class GuestManager(object):
     def determine_analyzer_path(self):
         """Determine the path of the analyzer. Basically creating a temporary
         directory in the systemdrive, i.e., C:\\."""
-        systemdrive = "%s\\" % self.environ["SYSTEMDRIVE"]
+        #systemdrive = "%s\\" % self.environ["SYSTEMDRIVE"]
 
         options = parse_options(self.options["options"])
         if options.get("analpath"):
+            systemdrive = "%s\\" % self.environ["SYSTEMDRIVE"]
             dirpath = "%s\\%s" % (systemdrive, options["analpath"])
             r = self.post("/mkdir", data={"dirpath": dirpath})
             self.analyzer_path = dirpath
+	elif self.platform == "linux":
+            r = self.post("/mkdtemp", data={"dirpath": "/tmp"})
+            self.analyzer_path = r.json()["dirpath"]
         else:
+            systemdrive = "%s\\" % self.environ["SYSTEMDRIVE"]
             r = self.post("/mkdtemp", data={"dirpath": systemdrive})
             self.analyzer_path = r.json()["dirpath"]
 
@@ -391,10 +402,8 @@ class GuestManager(object):
 
         self.options = options
         self.timeout = options["timeout"] + config("cuckoo:timeouts:critical")
-
         # Wait for the agent to come alive.
         self.wait_available()
-
         # Could be beautified a bit, but basically we have to perform the
         # same check here as we did in wait_available().
         if db.guest_get_status(self.task_id) != "starting":
@@ -459,31 +468,53 @@ class GuestManager(object):
         self.aux.callback("prepare_guest")
 
         # If the target is a file, upload it to the guest.
+        # modify by xuyuu, send proc to guest
         if options["category"] == "file" or options["category"] == "archive":
-            data = {
-                "filepath": os.path.join(
-                    self.environ["TEMP"], options["file_name"]
-                ),
-            }
+            if(self.platform == "windows"):
+                data = {
+                    "filepath": os.path.join(
+                        self.environ["TEMP"], options["file_name"]
+                    ),
+                }
+            else:
+                data = {
+                    "filepath": os.path.join(
+                        "/tmp", options["file_name"]
+                    ),
+                }
             files = {
                 "file": ("sample.bin", open(options["target"], "rb")),
             }
             self.post("/store", files=files, data=data)
 
         if "execpy" in features:
-            data = {
-                "filepath": "%s\\analyzer.py" % self.analyzer_path,
-                "async": "yes",
-                "cwd": self.analyzer_path,
-            }
+            if self.platform == "windows":
+                data = {
+                    "filepath": "%s\\analyzer.py" % self.analyzer_path,
+                    "async": "yes",
+                    "cwd": self.analyzer_path,
+                }
+            else:
+                data = {
+                    "filepath": "%s/analyzer.py" % self.analyzer_path,
+                    "async": "yes",
+                    "cwd": self.analyzer_path,
+                }
             self.post("/execpy", data=data)
         else:
             # Execute the analyzer that we just uploaded.
-            data = {
-                "command": "C:\\Python27\\pythonw.exe %s\\analyzer.py" % self.analyzer_path,
-                "async": "yes",
-                "cwd": self.analyzer_path,
-            }
+            if self.platform == "windows":
+                data = {
+                    "command": "C:\\Python27\\pythonw.exe %s\\analyzer.py" % self.analyzer_path,
+                    "async": "yes",
+                    "cwd": self.analyzer_path,
+                }
+            else:
+                data = {
+                    "command": "/usr/bin/python %s/analyzer.py" % self.analyzer_path,
+                    "async": "yes",
+                    "cwd": self.analyzer_path,
+                }
             self.post("/execute", data=data)
 
     def wait_for_completion(self):
