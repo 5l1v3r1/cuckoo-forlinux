@@ -23,7 +23,6 @@ from cuckoo.common.elastic import elastic
 from cuckoo.common.exceptions import (
     CuckooOperationalError, CuckooDatabaseError, CuckooDependencyError
 )
-from cuckoo.common.mongo import mongo
 from cuckoo.common.objects import Dictionary, File
 from cuckoo.common.utils import to_unicode
 from cuckoo.core.database import (
@@ -58,7 +57,6 @@ def fetch_community(branch="master", force=False, filepath=None):
     folders = {
         "modules/signatures": "signatures",
         "data/monitor": "monitor",
-        "data/yara": "yara",
         "agent": "agent",
         "analyzer": "analyzer",
     }
@@ -92,9 +90,6 @@ def fetch_community(branch="master", force=False, filepath=None):
             if member.issym():
                 t.makelink(member, filepath)
                 continue
-
-            if not os.path.exists(os.path.dirname(filepath)):
-                os.makedirs(os.path.dirname(filepath))
 
             log.debug("Extracted %s..", member.name[len(name_start)+1:])
             open(filepath, "wb").write(t.extractfile(member).read())
@@ -351,14 +346,18 @@ def cuckoo_clean():
                     "the connectivity, apply all migrations if needed or purge "
                     "it manually. Error description: %s", e)
 
-    # Check if MongoDB reporting is enabled and drop the database if it is.
-    if mongo.init():
+    # Check if MongoDB reporting is enabled and drop that if it is.
+    # TODO Move to the MongoDB abstract.
+    if config("reporting:mongodb:enabled"):
+        host = config("reporting:mongodb:host")
+        port = config("reporting:mongodb:port")
+        mdb = config("reporting:mongodb:db")
         try:
-            mongo.connect()
-            mongo.drop()
-            mongo.close()
-        except Exception as e:
-            log.warning("Unable to drop MongoDB database: %s", e)
+            conn = pymongo.MongoClient(host, port)
+            conn.drop_database(mdb)
+            conn.close()
+        except:
+            log.warning("Unable to drop MongoDB database: %s", mdb)
 
     # Check if ElasticSearch reporting is enabled and drop its data if it is.
     if elastic.init():
@@ -480,16 +479,9 @@ def migrate_cwd():
         "of our own."
     )
 
-    # Migration from 2.0.2 to 2.0.3. TODO Abstract this away.
-    if not os.path.exists(cwd("yara", "index_scripts.yar")):
-        open(cwd("yara", "index_scripts.yar"), "wb").close()
-
-    if not os.path.exists(cwd("yara", "index_shellcode.yar")):
-        open(cwd("yara", "index_shellcode.yar"), "wb").close()
-
     hashes = {}
     for line in open(cwd("cwd", "hashes.txt", private=True), "rb"):
-        if not line.strip() or line.startswith("#"):
+        if not line.strip():
             continue
         hash_, filename = line.split()
         hashes[filename] = hashes.get(filename, []) + [hash_]
@@ -534,8 +526,6 @@ def migrate_cwd():
 
     for filename in outdated:
         log.debug("Upgraded %s", filename)
-        if not os.path.exists(os.path.dirname(cwd(filename))):
-            os.makedirs(os.path.dirname(cwd(filename)))
         shutil.copy(cwd("..", "data", filename, private=True), cwd(filename))
 
     log.info(

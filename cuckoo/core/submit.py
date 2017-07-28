@@ -123,7 +123,7 @@ class SubmitManager(object):
 
         if submit_type == "strings":
             for line in data:
-                self._handle_string(submit_data, path_tmp, line.strip())
+                self._handle_string(submit_data, path_tmp, line)
 
         if submit_type == "files":
             for entry in data:
@@ -261,8 +261,7 @@ class SubmitManager(object):
                     continue
 
                 arc = sflock.zipify(sflock.unpack(
-                    contents=open(arcpath, "rb").read(),
-                    filename=info["arcname"]
+                    info["arcname"], contents=open(arcpath, "rb").read()
                 ))
 
                 # Create a .zip archive out of this container.
@@ -285,9 +284,7 @@ class SubmitManager(object):
                     continue
 
                 content = sflock.unpack(arcpath).read(info["extrpath"][:-1])
-                subarc = sflock.unpack(
-                    contents=content, filename=info["extrpath"][-2]
-                )
+                subarc = sflock.unpack(info["extrpath"][-2], contents=content)
 
                 # Write intermediate .zip archive file.
                 arcpath = Files.temp_named_put(

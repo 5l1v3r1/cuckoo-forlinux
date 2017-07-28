@@ -242,8 +242,7 @@ class PortableExecutable(object):
             log.critical(
                 "You do not have the m2crypto library installed preventing "
                 "certificate extraction. Please read the Cuckoo "
-                "documentation on installing m2crypto (you need SWIG "
-                "installed and then `pip install m2crypto==0.24.0`)!"
+                "documentation on installing m2crypto!"
             )
             return []
 

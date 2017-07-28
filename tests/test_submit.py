@@ -6,7 +6,6 @@ import io
 import json
 import mock
 import os
-import pytest
 import responses
 import tempfile
 import zipfile
@@ -58,8 +57,7 @@ class TestSubmitManager(object):
         assert self.submit_manager.pre(submit_type="strings", data=[
             "http://theguardian.com/",
             "https://news.ycombinator.com/",
-            # Any trailing whitespaces should be stripped.
-            "google.com \t",
+            "google.com",
         ]) == 1
 
         submit = db.view_submit(1)
@@ -292,42 +290,6 @@ class TestSubmitManager(object):
             "filename": "files/pdf0.pdf",
         }
         assert len(zipfile.ZipFile(t.target).read("files/pdf0.pdf")) == 680
-
-    @pytest.mark.skipif("sys.platform != 'linux2'")
-    def test_submit_arc4(self):
-        assert self.submit_manager.pre("files", [{
-            "name": "rar_plain.rar",
-            "data": open("tests/files/rar_plain.rar", "rb").read(),
-        }]) == 1
-
-        config = json.load(open("tests/files/submit/arc4.json", "rb"))
-        assert self.submit_manager.submit(1, config) == [1]
-        t = db.view_task(1)
-        assert t.target.endswith("rar_plain.rar")
-        assert t.options == {
-            "route": "none",
-            "procmemdump": "yes",
-            "filename": "bar.txt",
-        }
-        assert len(zipfile.ZipFile(t.target).read("bar.txt")) == 12
-
-    @pytest.mark.skipif("sys.platform != 'linux2'")
-    def test_submit_arc5(self):
-        assert self.submit_manager.pre("files", [{
-            "name": "rar_plain_rar.rar",
-            "data": open("tests/files/rar_plain_rar.rar", "rb").read(),
-        }]) == 1
-
-        config = json.load(open("tests/files/submit/arc5.json", "rb"))
-        assert self.submit_manager.submit(1, config) == [1]
-        t = db.view_task(1)
-        assert t.target.endswith("rar_plain.rar")
-        assert t.options == {
-            "route": "none",
-            "procmemdump": "yes",
-            "filename": "bar.txt",
-        }
-        assert len(zipfile.ZipFile(t.target).read("bar.txt")) == 12
 
     def test_pre_options(self):
         assert self.submit_manager.pre(

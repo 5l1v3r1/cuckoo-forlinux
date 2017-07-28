@@ -11,9 +11,6 @@ import xmlrpclib
 import traceback
 import time
 import datetime
-#modify by xuyuu
-import urllib
-import urllib2
 
 from lib.api.process import Process
 from lib.common.abstracts import Package, Auxiliary
@@ -81,9 +78,7 @@ class Analyzer:
         # We update the target according to its category. If it's a file, then
         # we store the path.
         if self.config.category == "file":
-            #modify by xuyuu
-            self.target = os.path.join("/tmp", self.config.file_name)
-            #self.target = os.path.join(tempfile.gettempdir(), self.config.file_name)
+            self.target = os.path.join(tempfile.gettempdir(), self.config.file_name)
         # If it's a URL, well.. we store the URL.
         else:
             self.target = self.config.target
@@ -101,14 +96,13 @@ class Analyzer:
         @return: operation status.
         """
         self.prepare()
+
         log.debug("Starting analyzer from: %s", os.getcwd())
         log.debug("Storing results at: %s", PATHS["root"])
 
         # If no analysis package was specified at submission, we try to select
         # one automatically.
-        #modify by xuyuu
-        #if not self.config.package:
-        if "None" == self.config.package or None == self.config.package:
+        if not self.config.package:
             log.debug("No analysis package specified, trying to detect "
                       "it automagically.")
 
@@ -171,10 +165,7 @@ class Analyzer:
         for module in sorted(Auxiliary.__subclasses__(), key=lambda x: x.priority, reverse=True):
             # Try to start the auxiliary module.
             try:
-                #modify by xuyuu
                 aux = module()
-                if aux.__class__.__name__ == "LKM":
-                    continue
                 aux_avail.append(aux)
                 aux.start()
             except (NotImplementedError, AttributeError):
@@ -243,8 +234,7 @@ class Analyzer:
                             PROCESS_LIST.remove(pid)
 
                     # ask the package if it knows any new pids
-                    #modify by xuyuu
-                    #add_pids(pack.get_pids())
+                    add_pids(pack.get_pids())
 
                     # also ask the auxiliaries
                     for aux in aux_avail:
@@ -350,11 +340,6 @@ if __name__ == "__main__":
 
         # Run it and wait for the response.
         success = analyzer.run()
-        #modify by xuyuu
-        data = {
-            "status": "complete",
-            "description": success,
-        }
 
     # This is not likely to happen.
     except KeyboardInterrupt:
@@ -374,19 +359,9 @@ if __name__ == "__main__":
         else:
             sys.stderr.write("{0}\n".format(error_exc))
 
-       #modify by xuyuu
-        data = {
-            "status": "exception",
-            "description": error_exc,
-        }
     # Once the analysis is completed or terminated for any reason, we report
     # back to the agent, notifying that it can report back to the host.
     finally:
         # Establish connection with the agent XMLRPC server.
-        #modify by xuyuu 
-        try:
-            server = xmlrpclib.Server("http://127.0.0.1:8000")
-            server.complete(success, error, PATHS["root"])
-        except xmlrpclib.ProtocolError:
-            urllib2.urlopen("http://127.0.0.1:8000/status",
-                urllib.urlencode(data)).read()
+        server = xmlrpclib.Server("http://127.0.0.1:8000")
+        server.complete(success, error, PATHS["root"])

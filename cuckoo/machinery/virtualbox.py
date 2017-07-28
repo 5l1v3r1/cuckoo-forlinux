@@ -372,7 +372,7 @@ class VirtualBox(Machinery):
 
             log.info(
                 "Successfully generated memory dump for virtual machine "
-                "with label %s to path %s", label, path.encode("utf8")
+                "with label %s to path %s", label, path
             )
         except OSError as e:
             raise CuckooMachineError(

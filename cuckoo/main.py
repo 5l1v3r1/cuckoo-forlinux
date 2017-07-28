@@ -122,7 +122,7 @@ def cuckoo_init(level, ctx, cfg=None):
 
     init_modules()
     init_tasks()
-    init_yara()
+    init_yara(True)
     init_binaries()
     init_rooter()
     init_routing()
@@ -336,7 +336,7 @@ def process(ctx, instance, report, maxcount):
     try:
         # Initialize all modules & Yara rules.
         init_modules()
-        init_yara()
+        init_yara(False)
     except CuckooCriticalError as e:
         message = red("{0}: {1}".format(e.__class__.__name__, e))
         if len(log.handlers):
@@ -445,36 +445,14 @@ def api(ctx, host, port, uwsgi, nginx):
 @click.option("-p", "--port", default=53, help="UDP port to bind to for the DNS server")
 @click.option("--nxdomain", help="IP address to return instead of NXDOMAIN")
 @click.option("--hardcode", help="Hardcoded IP address to return instead of actually doing DNS lookups")
-@click.option("--sudo", is_flag=True, help="Request superuser privileges")
 @click.pass_context
-def dnsserve(ctx, host, port, nxdomain, hardcode, sudo):
+def dnsserve(ctx, host, port, nxdomain, hardcode):
     """Custom DNS server."""
     init_console_logging(ctx.parent.level)
-
-    if sudo:
-        args = [
-            "sudo", sys.argv[0], "dnsserve",
-            "--host", host, "--port", "%d" % port,
-        ]
-
-        if ctx.parent.level == logging.DEBUG:
-            args.insert(2, "--debug")
-
-        if nxdomain:
-            args.extend(("--nxdomain", nxdomain))
-
-        if hardcode:
-            args.extend(("--hardcode", hardcode))
-
-        try:
-            subprocess.call(args)
-        except KeyboardInterrupt:
-            pass
-    else:
-        try:
-            cuckoo_dnsserve(host, port, nxdomain, hardcode)
-        except KeyboardInterrupt:
-            print(red("Aborting Cuckoo DNS Serve.."))
+    try:
+        cuckoo_dnsserve(host, port, nxdomain, hardcode)
+    except KeyboardInterrupt:
+        print(red("Aborting Cuckoo DNS Serve.."))
 
 @main.command()
 @click.argument("args", nargs=-1)
@@ -530,7 +508,6 @@ def web(ctx, args, host, port, uwsgi, nginx):
     # Switch to cuckoo/web and add the current path to sys.path as the Web
     # Interface is using local imports here and there.
     # TODO Rename local imports to either cuckoo.web.* or relative imports.
-    sys.argv[0] = os.path.abspath(sys.argv[0])
     os.chdir(os.path.join(cuckoo.__path__[0], "web"))
     sys.path.insert(0, ".")
 

@@ -3,18 +3,16 @@
 # See the file 'docs/LICENSE' for copying permission.
 
 import mock
-import os.path
+import pytest
 import shutil
 import struct
 import tempfile
 
 from cuckoo.common.abstracts import Signature
 from cuckoo.common.objects import Dictionary
-from cuckoo.common.scripting import Scripting
 from cuckoo.core.database import Database
-from cuckoo.core.extract import ExtractManager
 from cuckoo.core.plugins import RunSignatures, RunProcessing
-from cuckoo.core.startup import init_yara, init_modules
+from cuckoo.core.startup import init_yara, init_modules, HAVE_YARA
 from cuckoo.main import cuckoo_create
 from cuckoo.misc import cwd, set_cwd, mkdir
 
@@ -120,7 +118,6 @@ def test_signature_order():
         minimum = "2.0.0"
         maximum = None
         platform = "windows"
-        marks = []
 
         def __init__(self, caller):
             pass
@@ -204,7 +201,6 @@ def test_signature_severity(p):
         name = "foobar"
         matched = True
         severity = 42
-        marks = []
 
         def init(self):
             pass
@@ -224,41 +220,9 @@ def test_signature_severity(p):
         "signature": "foobar", "severity": 42,
     }
 
-def test_mark_config():
-    class sig(Signature):
-        name = "foobar"
-
-        def on_complete(self):
-            self.mark_config({
-                "family": "foobar",
-                "cnc": "thisiscnc.com",
-                "url": [
-                    "url1", "url2",
-                ],
-            })
-            return True
-
-    rs = RunSignatures({
-        "metadata": {},
-    })
-    rs.signatures = sig(rs),
-    rs.run()
-    assert rs.results["metadata"] == {
-        "cfgextr": [{
-            "family": "foobar",
-            "cnc": [
-                "thisiscnc.com",
-            ],
-            "url": [
-                "url1", "url2",
-            ],
-            "key": None,
-            "type": None,
-        }],
-    }
-
+@pytest.mark.skipif(not HAVE_YARA, reason="Yara has not been installed")
 def test_on_yara():
-    set_cwd(os.path.realpath(tempfile.mkdtemp()))
+    set_cwd(tempfile.mkdtemp())
     cuckoo_create()
     init_modules()
 
@@ -266,7 +230,7 @@ def test_on_yara():
         cwd("yara", "binaries", "vmdetect.yar"),
         cwd("yara", "memory", "vmdetect.yar")
     )
-    init_yara()
+    init_yara(True)
 
     mkdir(cwd(analysis=1))
     open(cwd("binary", analysis=1), "wb").write("\x0f\x3f\x07\x0b")
@@ -316,9 +280,6 @@ def test_on_yara():
         def on_complete(self):
             pass
 
-        def on_extract(self):
-            pass
-
         on_yara = mock.MagicMock()
 
     rs = RunSignatures(results)
@@ -336,73 +297,6 @@ def test_on_yara():
     sig1.on_yara.assert_any_call(
         "procmem", cwd("memory", "1-0.dmp", analysis=1), mock.ANY
     )
-    ym = sig1.on_yara.call_args_list[0][0][2]
-    assert ym.offsets == {
+    assert sig1.on_yara.call_args_list[0][0][2]["offsets"] == {
         "virtualpc": [(0, 0)],
     }
-    assert ym.string("virtualpc", 0) == "\x0f\x3f\x07\x0b"
-
-def test_on_extract():
-    set_cwd(tempfile.mkdtemp())
-    cuckoo_create()
-    init_modules()
-
-    Database().connect()
-    mkdir(cwd(analysis=2))
-
-    cmd = Scripting().parse_command("cmd.exe /c ping 1.2.3.4")
-
-    ex = ExtractManager.for_task(2)
-    ex.push_script({
-        "pid": 1,
-        "first_seen": 2,
-    }, cmd)
-
-    results = RunProcessing(task=Dictionary({
-        "id": 2,
-        "category": "file",
-        "target": __file__,
-    })).run()
-
-    assert results["extracted"] == [{
-        "category": "script",
-        "pid": 1,
-        "first_seen": 2,
-        "program": "cmd",
-        "script": cwd("extracted", "0.bat", analysis=2),
-        "yara": [],
-    }]
-
-    class sig1(object):
-        name = "sig1"
-
-        @property
-        def matched(self):
-            return False
-
-        @matched.setter
-        def matched(self, value):
-            pass
-
-        def init(self):
-            pass
-
-        def on_signature(self):
-            pass
-
-        def on_complete(self):
-            pass
-
-        def on_yara(self):
-            pass
-
-        on_extract = mock.MagicMock()
-
-    rs = RunSignatures(results)
-
-    rs.signatures = sig1(),
-    rs.run()
-
-    sig1.on_extract.assert_called_once()
-    em = sig1.on_extract.call_args_list[0][0][0]
-    assert em.category == "script"
