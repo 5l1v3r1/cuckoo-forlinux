@@ -351,7 +351,7 @@ class GuestManager(object):
             dirpath = "%s\\%s" % (systemdrive, options["analpath"])
             r = self.post("/mkdir", data={"dirpath": dirpath})
             self.analyzer_path = dirpath
-	elif self.platform == "linux":
+        elif self.platform == "linux":
             r = self.post("/mkdtemp", data={"dirpath": "/tmp"})
             self.analyzer_path = r.json()["dirpath"]
         else:

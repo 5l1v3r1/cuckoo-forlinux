@@ -365,8 +365,8 @@ class LibVirtMachinery(Machinery):
                 vm = self.vms[label]
                 snapshot = vm.snapshotLookupByName(vm_info.snapshot, flags=0)
                 self.vms[label].revertToSnapshot(snapshot, flags=0)
-		#modify by xuyuu
-		self.vms[label].create()
+                #modify by xuyuu
+                self.vms[label].create()
             except libvirt.libvirtError:
                 msg = "Unable to restore snapshot {0} on " \
                       "virtual machine {1}".format(vm_info.snapshot, label)
@@ -380,8 +380,8 @@ class LibVirtMachinery(Machinery):
 
             try:
                 self.vms[label].revertToSnapshot(snapshot, flags=0)
-		#modify by xuyuu
-		self.vms[label].create()
+                #modify by xuyuu
+                self.vms[label].create()
             except libvirt.libvirtError:
                 raise CuckooMachineError("Unable to restore snapshot on "
                                          "virtual machine {0}".format(label))
